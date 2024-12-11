@@ -1,7 +1,7 @@
 import Flutter
 import UIKit
-import mach
-import mach_host
+import Foundation
+
 
 public class FlutterMemoryInfoPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -14,11 +14,11 @@ public class FlutterMemoryInfoPlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "getTotalPhysicalMemorySize":
       result(getTotalPhysicalMemorySize())
-    case "getFreePhysicalMemory":
+    case "getFreePhysicalMemorySize":
       result(getFreePhysicalMemory())
     case "getTotalVirtualMemorySize":
       result(getTotalVirtualMemorySize())
-    case "getFreeVirtualMemory": 
+    case "getFreeVirtualMemorySize":
       result(getFreeVirtualMemory())
     default:
       result(FlutterMethodNotImplemented)
@@ -26,60 +26,64 @@ public class FlutterMemoryInfoPlugin: NSObject, FlutterPlugin {
   }
   
   private func getTotalPhysicalMemorySize() -> Int64 {
-    return Int64(ProcessInfo.processInfo.physicalMemory)
+      let (used,tot)=MemoryInfo.getMemoryUsage()
+    return Int64(tot)
   }
   
   private func getFreePhysicalMemory() -> Int64 {
-    var pageSize: vm_size_t = 0
-    var vmStats = vm_statistics64()
-    var size: mach_msg_type_number_t = UInt32(MemoryLayout<vm_statistics64_data_t>.stride / MemoryLayout<integer_t>.stride)
+      let (used,tot)=MemoryInfo.getMemoryUsage()
     
-    let hostPort: mach_port_t = mach_host_self()
-    let psErr: kern_return_t = host_page_size(hostPort, &pageSize)
-    let vmErr: kern_return_t = host_statistics64(hostPort, HOST_VM_INFO64, &vmStats.withUnsafeMutableBytes { pointer -> UnsafeMutablePointer<integer_t> in
-      return pointer.baseAddress!.assumingMemoryBound(to: integer_t.self)
-    }, &size)
-    
-    if psErr == KERN_SUCCESS && vmErr == KERN_SUCCESS {
-      let freeSize = Int64(vmStats.free_count) * Int64(pageSize)
-      return freeSize
-    }
-    
-    return 0
+      return Int64(tot-used)
   }
   
   private func getTotalVirtualMemorySize() -> Int64 {
-    var totalVirtualMemory: Int64 = 0
-    var machHost = mach_host_self()
-    var hostVMInfo = host_vm_info_data_t()
-    var count = mach_msg_type_number_t(MemoryLayout<vm_statistics_data_t>.size / MemoryLayout<integer_t>.size)
-    
-    let result = host_statistics(machHost, HOST_VM_INFO, &hostVMInfo.withUnsafeMutableBytes { pointer -> UnsafeMutablePointer<integer_t> in
-      return pointer.baseAddress!.assumingMemoryBound(to: integer_t.self)
-    }, &count)
-    
-    if result == KERN_SUCCESS {
-      let pageSize = vm_kernel_page_size
-      totalVirtualMemory = Int64(hostVMInfo.free_count + hostVMInfo.active_count + hostVMInfo.inactive_count + hostVMInfo.wire_count) * Int64(pageSize)
-    }
-    
-    return totalVirtualMemory
+      return 0
   }
   
   private func getFreeVirtualMemory() -> Int64 {
-    var machHost = mach_host_self()
-    var hostVMInfo = host_vm_info_data_t()
-    var count = mach_msg_type_number_t(MemoryLayout<vm_statistics_data_t>.size / MemoryLayout<integer_t>.size)
-    
-    let result = host_statistics(machHost, HOST_VM_INFO, &hostVMInfo.withUnsafeMutableBytes { pointer -> UnsafeMutablePointer<integer_t> in
-      return pointer.baseAddress!.assumingMemoryBound(to: integer_t.self)
-    }, &count)
-    
-    if result == KERN_SUCCESS {
-      let pageSize = vm_kernel_page_size
-      return Int64(hostVMInfo.free_count) * Int64(pageSize)
-    }
-    
     return 0
   }
+}
+
+
+class MemoryInfo {
+    static func getMemoryUsage() -> (used: UInt64, total: UInt64) {
+        var pageSize: vm_size_t = 0
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size/MemoryLayout<natural_t>.size)
+        
+        host_page_size(mach_host_self(), &pageSize)
+        
+        let kerr = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_,
+                         task_flavor_t(MACH_TASK_BASIC_INFO),
+                         $0,
+                         &count)
+            }
+        }
+        
+        if kerr == KERN_SUCCESS {
+            let usedMem = UInt64(info.resident_size)
+            
+            var hostInfo = host_basic_info()
+            var hostCount = UInt32(MemoryLayout<host_basic_info>.size / MemoryLayout<integer_t>.size)
+            
+            let hostResult = withUnsafeMutablePointer(to: &hostInfo) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                    host_info(mach_host_self(),
+                             HOST_BASIC_INFO,
+                             $0,
+                             &hostCount)
+                }
+            }
+            
+            if hostResult == KERN_SUCCESS {
+                let totalMem = UInt64(hostInfo.max_mem)
+                return (usedMem, totalMem)
+            }
+        }
+        
+        return (0, 0)
+    }
 }

@@ -29,7 +29,7 @@ abstract class MemoryInfo {
 
   /// Get the total virtual memory size in bytes.
   ///
-  /// Support platforms: Windows, iOS, macOS, Linux.
+  /// Support platforms: Windows, Linux.
   static Future<int?> getTotalVirtualMemorySize() async {
     if (Platform.isWindows) {
       return windows.getTotalVirtualMemorySize();
@@ -40,7 +40,7 @@ abstract class MemoryInfo {
 
   /// Get the free virtual memory size in bytes.
   ///
-  /// Support platforms: Windows, iOS, macOS, Linux.
+  /// Support platforms: Windows, Linux.
   static Future<int?> getFreeVirtualMemorySize() async {
     if (Platform.isWindows) {
       return windows.getFreeVirtualMemorySize();
