@@ -3,6 +3,13 @@ description: "A Flutter plugin for getting memory info."
 version: 0.0.1
 repository: https://github.com/wgh136/flutter_memory_info
 
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
+
 environment:
   sdk: ^3.5.4
   flutter: '>=3.3.0'
