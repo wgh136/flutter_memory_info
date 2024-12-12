@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_memory_info/flutter_memory_info.dart';
 import 'package:flutter_memory_info/flutter_memory_info_platform_interface.dart';
 import 'package:flutter_memory_info/flutter_memory_info_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
