@@ -36,7 +36,7 @@ class _MyAppState extends State<MyApp> {
     try {
       totalPhysicalMemorySize = await MemoryInfo.getTotalPhysicalMemorySize();
       freePhysicalMemorySize = await MemoryInfo.getFreePhysicalMemorySize();
-      if (Platform.isWindows) {
+      if (Platform.isWindows || Platform.isLinux) {
         totalVirtualMemorySize = await MemoryInfo.getTotalVirtualMemorySize();
         freeVirtualMemorySize = await MemoryInfo.getFreeVirtualMemorySize();
       }

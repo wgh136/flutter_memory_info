@@ -7,6 +7,16 @@
 #include <cstring>
 
 #include "flutter_memory_info_plugin_private.h"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+
+using std::string;
+using std::cerr;
+using std::endl;
+using std::stringstream;
+using std::ifstream;
 
 #define FLUTTER_MEMORY_INFO_PLUGIN(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj), flutter_memory_info_plugin_get_type(), \
@@ -25,34 +35,63 @@ static void flutter_memory_info_plugin_handle_method_call(
   g_autoptr(FlMethodResponse) response = nullptr;
   const gchar* method = fl_method_call_get_name(method_call);
 
-  struct sysinfo si;
-  if (sysinfo(&si) != 0) {
-    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
-        "SYSTEM_ERROR",
-        "Failed to get system information",
-        nullptr));
-    fl_method_call_respond(method_call, response, nullptr);
+  ifstream meminfo("/proc/meminfo");
+  if (!meminfo.is_open()) {
+    cerr << "Error: Unable to open /proc/meminfo" << endl;
     return;
   }
+  string line;
+  long totalMemory = 0, freeMemory = 0;
+  long swapTotal = 0, swapFree = 0;
+
+  while (getline(meminfo, line)) {
+        stringstream ss(line);
+        string key;
+        long value;
+        string unit;
+
+        // Read the key and value from each line (key is the memory info name, value is in kB)
+        ss >> key >> value >> unit;
+
+        // Extract total memory
+        if (key == "MemTotal:") {
+            totalMemory = value;
+        }
+
+        // Extract free memory
+        if (key == "MemFree:") {
+            freeMemory = value;
+        }
+
+        // Extract swap memory information
+        if (key == "SwapTotal:") {
+            swapTotal = value;
+        }
+
+        if (key == "SwapFree:") {
+            swapFree = value;
+        }
+
+        // If both values are found, stop reading
+        if (totalMemory > 0 && freeMemory > 0 && swapTotal > 0 && swapFree > 0) {
+            break;
+        }
+  }
+
+  meminfo.close();
 
   if (strcmp(method, "getTotalPhysicalMemorySize") == 0) {
-    g_autoptr(FlValue) result = fl_value_new_int64((int64_t)si.totalram * si.mem_unit);
+    g_autoptr(FlValue) result = fl_value_new_int((int64_t)totalMemory);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
-
   } else if (strcmp(method, "getFreePhysicalMemorySize") == 0) {
-    g_autoptr(FlValue) result = fl_value_new_int64((int64_t)si.freeram * si.mem_unit);
+    g_autoptr(FlValue) result = fl_value_new_int((int64_t)freeMemory);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
-
   } else if (strcmp(method, "getTotalVirtualMemorySize") == 0) {
-    uint64_t total_virtual = (si.totalram + si.totalswap) * si.mem_unit;
-    g_autoptr(FlValue) result = fl_value_new_int64(total_virtual);
+    g_autoptr(FlValue) result = fl_value_new_int((int64_t)swapTotal);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
-
   } else if (strcmp(method, "getFreeVirtualMemorySize") == 0) {
-    uint64_t free_virtual = (si.freeram + si.freeswap) * si.mem_unit;
-    g_autoptr(FlValue) result = fl_value_new_int64(free_virtual);
+    g_autoptr(FlValue) result = fl_value_new_int((int64_t)swapFree);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
-
   } else {
     response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
   }
